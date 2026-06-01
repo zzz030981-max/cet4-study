@@ -1883,7 +1883,39 @@ function playTTSAudio(word) {
     'https://fanyi.baidu.com/gettts?lan=en&text=' + encodeURIComponent(word) + '&spd=3',
     'https://dict.youdao.com/dictvoice?audio=' + encodeURIComponent(word) + '&type=1'
   ];
-  tryPlay(sources, 0);
+  // 微信内置浏览器需要特殊处理
+  if (/MicroMessenger/i.test(navigator.userAgent)) {
+    playInWechat(sources, 0);
+  } else {
+    tryPlay(sources, 0);
+  }
+}
+
+function playInWechat(sources, idx) {
+  if (idx >= sources.length) return;
+  try {
+    // 微信浏览器：用DOM audio元素 + load + play
+    var audio = document.getElementById('tts-audio');
+    if (!audio) {
+      audio = document.createElement('audio');
+      audio.id = 'tts-audio';
+      audio.setAttribute('preload', 'auto');
+      document.body.appendChild(audio);
+    }
+    audio.src = sources[idx];
+    audio.load();
+    // 微信需要在 WeixinJSBridge ready 后播放
+    if (typeof WeixinJSBridge !== 'undefined') {
+      WeixinJSBridge.invoke('getNetworkType', {}, function() {
+        audio.play().catch(function() { playInWechat(sources, idx + 1); });
+      });
+    } else {
+      // 直接尝试播放
+      audio.play().catch(function() { playInWechat(sources, idx + 1); });
+    }
+  } catch(e) {
+    playInWechat(sources, idx + 1);
+  }
 }
 
 function tryPlay(sources, idx) {
