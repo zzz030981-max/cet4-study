@@ -1849,31 +1849,41 @@ function toggleTheme() {
 let _ttsAudio = null;
 
 function speakWord(word) {
-  // Try Web Speech API first (desktop)
+  // 检测是否移动端
+  var isMobile = /Android|iPhone|iPad|iPod|MicroMessenger/i.test(navigator.userAgent);
+  if (isMobile) {
+    // 移动端直接用有道TTS音频
+    playGoogleTTS(word);
+    return;
+  }
+  // 桌面端用 Web Speech API
   if ('speechSynthesis' in window) {
     try {
       window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(word);
+      var utter = new SpeechSynthesisUtterance(word);
       utter.lang = 'en-US'; utter.rate = 0.85; utter.pitch = 1;
-      const voices = window.speechSynthesis.getVoices();
-      const enVoice = voices.find(v => v.lang.startsWith('en') && v.name.includes('US'))
-        || voices.find(v => v.lang.startsWith('en'));
+      var voices = window.speechSynthesis.getVoices();
+      var enVoice = voices.find(function(v){ return v.lang.startsWith('en') && v.name.includes('US'); })
+        || voices.find(function(v){ return v.lang.startsWith('en'); });
       if (enVoice) utter.voice = enVoice;
       utter.onerror = function() { playGoogleTTS(word); };
       window.speechSynthesis.speak(utter);
       return;
     } catch(e) {}
   }
-  // Fallback: Google TTS audio (mobile / WeChat)
   playGoogleTTS(word);
 }
 
 function playGoogleTTS(word) {
   try {
     if (_ttsAudio) { _ttsAudio.pause(); _ttsAudio = null; }
-    _ttsAudio = new Audio('https://translate.google.com/translate_tts?ie=UTF-8&q='
-      + encodeURIComponent(word) + '&tl=en&client=tw-ob');
-    _ttsAudio.play().catch(function(){});
+    // 有道词典TTS - 国内可直接访问
+    _ttsAudio = new Audio('https://dict.youdao.com/dictvoice?audio=' + encodeURIComponent(word) + '&type=2');
+    _ttsAudio.play().catch(function(){
+      // 备用：百度TTS
+      _ttsAudio = new Audio('https://fanyi.baidu.com/gettts?lan=en&text=' + encodeURIComponent(word) + '&spd=3');
+      _ttsAudio.play().catch(function(){});
+    });
   } catch(e) {}
 }
 
@@ -1897,6 +1907,23 @@ renderGrammar();
 
 var ls = document.getElementById('loading-screen');
 if (ls) { ls.style.opacity = '0'; setTimeout(function(){ ls.style.display = 'none'; }, 300); }
+
+// 解锁移动端音频播放（需要用户首次交互）
+var _audioUnlocked = false;
+function unlockAudio() {
+  if (_audioUnlocked) return;
+  _audioUnlocked = true;
+  try {
+    var ctx = new (window.AudioContext || window.webkitAudioContext)();
+    var buf = ctx.createBuffer(1, 1, 22050);
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch(e) {}
+}
+document.addEventListener('touchstart', unlockAudio, {once: true});
+document.addEventListener('click', unlockAudio, {once: true});
 </script>
 </body>
 </html>
