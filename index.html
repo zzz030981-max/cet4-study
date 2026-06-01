@@ -1482,7 +1482,7 @@ function renderReading() {
       <div class="card" style="margin-top:16px;">
         <div class="card-title" style="margin-bottom:16px;">${r.title}</div>
         <div style="background:var(--bg);padding:20px;border-radius:8px;margin-bottom:16px;line-height:1.9;font-size:15px;">${r.passage}</div>
-        ${r.questions.map((q, qi) => `
+        ${(r.questions || []).map((q, qi) => `
           <div class="question-block" style="margin-bottom:20px;">
             <div style="font-size:14px;font-weight:600;margin-bottom:10px;">${qi+1}. ${q.q}</div>
             ${q.options.map((opt, oi) => `
@@ -1494,6 +1494,14 @@ function renderReading() {
             <div id="explain-${ri}-${qi}" class="explanation" style="display:none;">${q.explain}</div>
           </div>
         `).join('')}
+        ${r.answers ? `
+          <div style="margin-top:12px;">
+            <button class="btn" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'">查看选词填空答案</button>
+            <div style="display:none;margin-top:12px;padding:14px;background:var(--bg);border-radius:8px;">
+              ${r.answers.map(a => `<div style="padding:4px 0;font-size:14px;"><strong>${a.blank}.</strong> <span style="color:var(--accent);font-weight:600;">${a.word}</span> — ${a.meaning}</div>`).join('')}
+            </div>
+          </div>
+        ` : ''}
       </div>
     `).join('');
     container.innerHTML = `
