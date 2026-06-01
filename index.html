@@ -600,10 +600,13 @@
           <button class="btn primary" onclick="markWord('认识')">✅ 认识</button>
           <button class="btn" onclick="nextWord()">➡️ 下一个</button>
         </div>
-        <div style="text-align:center;font-size:13px;color:var(--text2);">
-          <span id="fc-index">1</span> / <span id="fc-total">0</span>
-          &nbsp;&nbsp;|&nbsp;&nbsp;
+        <div style="text-align:center;font-size:13px;color:var(--text2);display:flex;align-items:center;justify-content:center;gap:12px;">
+          <span><span id="fc-index">1</span> / <span id="fc-total">0</span></span>
+          &nbsp;|&nbsp;
           <span id="fc-status" class="tag tag-new">新词</span>
+          &nbsp;|&nbsp;
+          <button id="shuffle-btn" class="btn sm" onclick="toggleShuffle()" style="padding:3px 10px;font-size:12px;">🔀 随机中</button>
+          <button class="btn sm" onclick="shuffleVocab();showCard();" style="padding:3px 10px;font-size:12px;" title="重新随机">🎲</button>
         </div>
       </div>
       <div id="vocab-list" style="display:none">
@@ -1343,8 +1346,34 @@ function resetPlan() { data.todayPlan = {}; saveData(data); renderTodayPlan(); }
 function initVocab() {
   VOCAB.forEach(v => { if (!data.wordStatus[v.word]) data.wordStatus[v.word] = 'new'; });
   saveData(data);
+  if (!vocabShuffled) shuffleVocab();
   showCard();
   renderWordList();
+}
+
+let vocabShuffled = false;
+let vocabOrder = [];
+
+function shuffleVocab() {
+  vocabOrder = Array.from({length: VOCAB.length}, (_, i) => i);
+  for (let i = vocabOrder.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [vocabOrder[i], vocabOrder[j]] = [vocabOrder[j], vocabOrder[i]];
+  }
+  vocabShuffled = true;
+  currentCardIndex = 0;
+}
+
+function toggleShuffle() {
+  if (vocabShuffled) {
+    vocabShuffled = false;
+    vocabOrder = [];
+    currentCardIndex = 0;
+  } else {
+    shuffleVocab();
+  }
+  showCard();
+  document.getElementById('shuffle-btn').textContent = vocabShuffled ? '🔀 随机中' : '🔁 顺序';
 }
 
 function switchVocabTab(tab) {
@@ -1360,7 +1389,8 @@ function switchVocabTab(tab) {
 function showCard() {
   if (!VOCAB.length) return;
   if (currentCardIndex >= VOCAB.length) currentCardIndex = 0;
-  const v = VOCAB[currentCardIndex];
+  const realIndex = vocabShuffled ? vocabOrder[currentCardIndex] : currentCardIndex;
+  const v = VOCAB[realIndex];
   document.getElementById('fc-word').textContent = v.word;
   document.getElementById('fc-phonetic').textContent = v.phonetic;
   document.getElementById('fc-pos').textContent = v.pos;
@@ -1376,12 +1406,15 @@ function showCard() {
   else { statusEl.textContent = '学习中'; statusEl.className = 'tag tag-learning'; }
   document.getElementById('flashcard').classList.remove('flipped');
   cardFlipped = false;
+  // Auto-play pronunciation
+  setTimeout(() => speakWord(v.word), 300);
 }
 
 function flipCard() { document.getElementById('flashcard').classList.toggle('flipped'); cardFlipped = !cardFlipped; }
 
 function markWord(status) {
-  const word = VOCAB[currentCardIndex].word;
+  const realIndex = vocabShuffled ? vocabOrder[currentCardIndex] : currentCardIndex;
+  const word = VOCAB[realIndex].word;
   data.wordStatus[word] = status;
   updateStreak(); saveData(data);
   currentCardIndex++; showCard();
