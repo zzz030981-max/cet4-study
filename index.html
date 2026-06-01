@@ -1406,8 +1406,10 @@ function showCard() {
   else { statusEl.textContent = '学习中'; statusEl.className = 'tag tag-learning'; }
   document.getElementById('flashcard').classList.remove('flipped');
   cardFlipped = false;
-  // Auto-play pronunciation
-  setTimeout(() => speakWord(v.word), 300);
+  // Auto-play pronunciation (only after user has interacted)
+  if (_audioUnlocked || !/Android|iPhone|iPad|iPod|MicroMessenger/i.test(navigator.userAgent)) {
+    setTimeout(function(){ speakWord(v.word); }, 300);
+  }
 }
 
 function flipCard() { document.getElementById('flashcard').classList.toggle('flipped'); cardFlipped = !cardFlipped; }
@@ -1849,42 +1851,56 @@ function toggleTheme() {
 let _ttsAudio = null;
 
 function speakWord(word) {
-  // 检测是否移动端
+  if (!word) return;
+  // 停止之前的音频
+  if (_ttsAudio) { try { _ttsAudio.pause(); } catch(e){} _ttsAudio = null; }
+
   var isMobile = /Android|iPhone|iPad|iPod|MicroMessenger/i.test(navigator.userAgent);
-  if (isMobile) {
-    // 移动端直接用有道TTS音频
-    playGoogleTTS(word);
-    return;
-  }
-  // 桌面端用 Web Speech API
-  if ('speechSynthesis' in window) {
+
+  if (!isMobile && 'speechSynthesis' in window) {
+    // 桌面端用 Web Speech API
     try {
       window.speechSynthesis.cancel();
-      var utter = new SpeechSynthesisUtterance(word);
-      utter.lang = 'en-US'; utter.rate = 0.85; utter.pitch = 1;
-      var voices = window.speechSynthesis.getVoices();
-      var enVoice = voices.find(function(v){ return v.lang.startsWith('en') && v.name.includes('US'); })
-        || voices.find(function(v){ return v.lang.startsWith('en'); });
-      if (enVoice) utter.voice = enVoice;
-      utter.onerror = function() { playGoogleTTS(word); };
-      window.speechSynthesis.speak(utter);
+      var u = new SpeechSynthesisUtterance(word);
+      u.lang = 'en-US'; u.rate = 0.85;
+      var vs = window.speechSynthesis.getVoices();
+      var ev = vs.find(function(v){ return v.lang.startsWith('en'); });
+      if (ev) u.voice = ev;
+      u.onerror = function() { playTTSAudio(word); };
+      window.speechSynthesis.speak(u);
       return;
     } catch(e) {}
   }
-  playGoogleTTS(word);
+
+  // 移动端 / 微信 / 桌面端降级：用音频播放
+  playTTSAudio(word);
 }
 
-function playGoogleTTS(word) {
+function playTTSAudio(word) {
+  // 尝试多个TTS源，直到成功
+  var sources = [
+    'https://dict.youdao.com/dictvoice?audio=' + encodeURIComponent(word) + '&type=2',
+    'https://fanyi.baidu.com/gettts?lan=en&text=' + encodeURIComponent(word) + '&spd=3',
+    'https://dict.youdao.com/dictvoice?audio=' + encodeURIComponent(word) + '&type=1'
+  ];
+  tryPlay(sources, 0);
+}
+
+function tryPlay(sources, idx) {
+  if (idx >= sources.length) return;
   try {
-    if (_ttsAudio) { _ttsAudio.pause(); _ttsAudio = null; }
-    // 有道词典TTS - 国内可直接访问
-    _ttsAudio = new Audio('https://dict.youdao.com/dictvoice?audio=' + encodeURIComponent(word) + '&type=2');
-    _ttsAudio.play().catch(function(){
-      // 备用：百度TTS
-      _ttsAudio = new Audio('https://fanyi.baidu.com/gettts?lan=en&text=' + encodeURIComponent(word) + '&spd=3');
-      _ttsAudio.play().catch(function(){});
-    });
-  } catch(e) {}
+    _ttsAudio = new Audio();
+    _ttsAudio.src = sources[idx];
+    var playPromise = _ttsAudio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(function() {
+        // 当前源失败，尝试下一个
+        tryPlay(sources, idx + 1);
+      });
+    }
+  } catch(e) {
+    tryPlay(sources, idx + 1);
+  }
 }
 
 try {
